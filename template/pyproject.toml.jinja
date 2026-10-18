@@ -24,11 +24,12 @@ dependencies = [
 ]
 
 [project.scripts]
-{{ cli_name }} = "{{ project_slug }}.cli:main"
+{{ cli_name }} = "{{ project_slug }}.cli:app"
 
 [dependency-groups]
 dev = [
   "pytest>=8",
+  "mypy>=1",
 ]
 
 [tool.hatch.build.targets.wheel]
