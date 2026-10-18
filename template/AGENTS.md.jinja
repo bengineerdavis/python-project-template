@@ -1,0 +1,24 @@
+# {{ project_name }}
+
+{{ project_name }}: {{ description }}.
+
+## Commands
+
+- `mise run install` — bootstrap tools and the agentic layer (idempotent)
+- `mise run test` — pytest (`uv run` auto-syncs the venv first)
+- `mise run quality` — lint + format-check + type-check
+- `mise run format` — auto-fix
+
+## Repo map
+
+- `src/{{ project_slug }}/` — the package; `cli.py` is the entry point
+- `tests/` — pytest suite
+- `docs/` — project documentation
+- `backlog/` — task store (backlog-py; work is assigned here before it starts)
+
+## Context loading (on demand)
+
+- Normative requirements → `docs/SPEC.md` (when present)
+- Task store → `uv run backlog-py board`
+
+The section below is managed by agentic-project-template.

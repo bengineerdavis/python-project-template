@@ -1,0 +1,43 @@
+# Base project harness — language concerns only. The agentic layer merges
+# its tools and tasks into this file; keep this minimal and conventionally
+# shaped so the layer's deep-merge (and aboyeur) can extend it safely.
+
+#:schema https://mise.jdx.dev/schema/mise.json
+
+[tools]
+python = "{{ python_version }}"
+uv = "latest"
+
+[tasks.test]
+description = "Run tests (uv auto-syncs the venv first)"
+run = "uv run pytest"
+
+[tasks.lint]
+description = "Ruff lint"
+run = "uv run ruff check src tests"
+
+[tasks.format]
+description = "Auto-fix lint findings and format"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+uv run ruff check --fix src tests
+uv run ruff format src tests
+'''
+
+[tasks.format-check]
+description = "Verify formatting and lint cleanliness"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+uv run ruff format --check src tests
+uv run ruff check src tests
+'''
+
+[tasks.type-check]
+description = "Mypy over src"
+run = "uv run mypy src"
+
+[tasks.quality]
+description = "All code-quality gates (lint, format, types)"
+depends = ["lint", "format-check", "type-check"]

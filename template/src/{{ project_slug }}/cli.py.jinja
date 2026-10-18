@@ -1,0 +1,35 @@
+"""CLI entry point for {{ project_name }}."""
+
+import typer
+
+from {{ project_slug }} import __version__
+
+app = typer.Typer(
+    help="{{ description }}",
+    no_args_is_help=True,
+)
+
+
+@app.callback()
+def main(
+    version: bool = typer.Option(False, "--version", help="Show version and exit"),
+) -> None:
+    """{{ project_name }}."""
+
+
+@app.command()
+def hello(
+    name: str = typer.Option("world", help="Who to greet"),
+) -> None:
+    """Sample command — replace with real commands as they land."""
+    typer.echo(f"Hello {name}!")
+
+
+@app.command()
+def version() -> None:
+    """Show the installed version."""
+    typer.echo(__version__)
+
+
+if __name__ == "__main__":
+    app()

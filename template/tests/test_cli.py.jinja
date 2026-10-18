@@ -1,0 +1,24 @@
+"""Tests for the CLI entry point."""
+
+from typer.testing import CliRunner
+
+from {{ project_slug }}.cli import app
+
+runner = CliRunner()
+
+
+def test_help_exits_zero() -> None:
+    result = runner.invoke(app, ["--help"])
+    assert result.exit_code == 0
+
+
+def test_version_command() -> None:
+    result = runner.invoke(app, ["version"])
+    assert result.exit_code == 0
+    assert "{{ project_version }}" in result.output
+
+
+def test_hello_default() -> None:
+    result = runner.invoke(app, ["hello"])
+    assert result.exit_code == 0
+    assert "Hello world!" in result.output

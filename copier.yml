@@ -1,0 +1,64 @@
+# Base copier template: modern Python CLI project (uv + prek + ruff + typer).
+#
+# Division of labor: this template owns language/build/test/lint concerns.
+# The agentic layer (agentic-project-template) stamps ON TOP and owns review
+# loops, task management, agent wiring, and structure enforcement. Keep the
+# two concerns separate when extending (agentic spec: Behavior Layering).
+
+_templates_suffix: .jinja
+_subdirectory: template
+
+project_name:
+  type: str
+  help: Human-readable project name (README, AGENTS.md)
+
+description:
+  type: str
+  default: ""
+  help: One-line description (README, pyproject, agent context)
+
+project_slug:
+  type: str
+  default: "{{ project_name.lower() | replace(' ', '_') | replace('-', '_') }}"
+  help: Python import name (lowercase, underscores)
+
+package_name:
+  type: str
+  default: "{{ project_slug }}"
+  help: Distribution name (PyPI). May differ from the import name (e.g. redge-cli vs redge)
+
+cli_name:
+  type: str
+  default: "{{ project_slug }}"
+  help: Console-script name (the command users type)
+
+author_name:
+  type: str
+  help: Author name (copyright notice, pyproject)
+
+author_email:
+  type: str
+  help: Author email
+
+copyright_year:
+  type: str
+  default: "2026"
+  help: Year for the copyright notice
+
+project_version:
+  type: str
+  default: "0.0.1"
+  help: Initial version
+
+python_version:
+  type: str
+  default: "3.12"
+  help: Minimum Python version (requires-python)
+
+license:
+  type: str
+  default: MIT
+  choices:
+    - MIT
+    - FSL-1.1-MIT
+  help: "License. FSL-1.1-MIT is Fair Source: everything except competing use, converts to MIT after two years."

@@ -1,0 +1,16 @@
+#:schema https://www.schemastore.org/prek.json
+
+# Code semantics only. Division of labor with the agentic layer (stamped on
+# top of this base): ruff owns code and config-file semantics here; the
+# layer adds alint (repository shape and content hygiene) and tombi (TOML).
+# No generic builtin hooks in this file — in layer-stamped projects alint
+# owns trailing whitespace, final newlines, and merge markers, and running
+# two tools on the same bytes teaches agents to ignore one of them.
+
+[[repos]]
+repo = "https://github.com/astral-sh/ruff-pre-commit"
+rev = "v0.17.1"
+hooks = [
+  { id = "ruff", args = ["--fix"] },
+  { id = "ruff-format" },
+]
