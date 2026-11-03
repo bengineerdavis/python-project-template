@@ -1,0 +1,13 @@
+# Changes here will be managed by Copier; NEVER EDIT MANUALLY
+_commit: v0.18.1-38-g9a49a7d
+_src_path: git@github.com:bengineerdavis/copier-template-copier-template.git
+copyright_name: Ben Davis
+copyright_year: '2026'
+include_pydantic_validation: false
+include_template_extensions: false
+license_type: MIT
+min_python_version: '3.12'
+output_template_name: python-project-template
+template_dir: template
+template_style: jinja
+vcs_platform: github

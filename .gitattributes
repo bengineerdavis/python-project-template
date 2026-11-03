@@ -1,0 +1,3 @@
+# Copier template sources are Jinja — keep GitHub's language bar honest
+# (linguist maps the .tmpl extension to "Go Template" otherwise)
+*.tmpl linguist-language=Jinja

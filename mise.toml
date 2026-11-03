@@ -1,0 +1,121 @@
+#:schema https://mise.jdx.dev/schema/mise.json
+
+# mise is the task runner; uv remains the provisioner (uv run / uvx inside
+# tasks). Task names are flat and hyphenated (mise forbids colons).
+
+[tools]
+uv = "latest"
+python = "3.12"
+
+[tasks.install]
+description = "Bootstrap dev setup: sync dependencies and register prek hooks"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+uv sync
+uv run prek install
+'''
+
+[tasks.test]
+description = "Run the pytest suite (tmp stored under ./tmp/pytest)"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+rm -rf ./tmp/pytest
+mkdir -p ./tmp
+uv run --frozen pytest --basetemp=./tmp/pytest/ "$@"
+'''
+
+[tasks.lint]
+description = "Run lints"
+run = "uv run prek run --all-files"
+
+[tasks.maintenance]
+description = "Update hooks and lockfile"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+uv run prek update
+uv lock --upgrade
+'''
+
+[tasks.update-template]
+description = "Update from the upstream copier-template template"
+run = '''
+#!/usr/bin/env bash
+uv run copier update -a .copier-answers.copier-template.yml "$@"
+'''
+
+[tasks.update-template-auto]
+description = "Update from upstream with existing answers (non-interactive)"
+run = '''
+#!/usr/bin/env bash
+uv run copier update -a .copier-answers.copier-template.yml -A "$@"
+'''
+
+[tasks.template-current]
+description = "Render the current template into tmp/current"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+rm -rf tmp/current
+uv run copier copy --vcs-ref HEAD . tmp/current
+'''
+
+[tasks.template-diff]
+description = "Compare last release render against HEAD render"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+rm -rf tmp/before tmp/after
+uv run copier copy . tmp/before
+uv run copier copy --vcs-ref HEAD . tmp/after
+diff -r tmp/before tmp/after
+'''
+
+[tasks.release-dry]
+description = "Dry-run release, e.g. mise run release-dry -- --minor"
+run = '''
+#!/usr/bin/env bash
+uv run python-semantic-release --noop version "$@"
+'''
+
+[tasks.release-actual]
+description = "Release a new version, e.g. mise run release-actual -- --minor"
+run = '''
+#!/usr/bin/env bash
+uv run python-semantic-release version "$@"
+git fetch
+'''
+
+[tasks.demo-record]
+description = "Record a demo of copier copy using asciinema (tmp/demo.cast)"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p tmp
+asciinema rec --overwrite tmp/demo.cast
+'''
+
+[tasks.demo-upload]
+description = "Upload tmp/demo.cast to asciinema.org and update README.md"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+URL=$(asciinema upload tmp/demo.cast | tee /dev/tty | grep -oE 'https://asciinema\.org/a/[A-Za-z0-9]+')
+python3 -c "
+import re, sys
+url = sys.argv[1]
+readme = open('README.md').read()
+updated = re.sub(r'https://asciinema\.org/a/[A-Za-z0-9]+', url, readme)
+open('README.md', 'w').write(updated)
+print(f'Updated README.md with {url}')
+" "$URL"
+'''
+
+[tasks.example-docker]
+description = "Example: docker volume mount to inspect the project in CI"
+run = '''
+#!/usr/bin/env bash
+docker run -v "$(pwd)":/code/ --entrypoint=/bin/bash python:3.12-slim -c 'cat /code/pyproject.toml'
+'''

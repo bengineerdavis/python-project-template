@@ -1,0 +1,138 @@
+{
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/\\.gitlab-ci\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "https://astral\\.sh/uv/(?<currentValue>[^/]+)/install\\.sh"
+      ],
+      "depNameTemplate": "astral-sh/uv",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/workflows/[^/]+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "setup-uv@[^\\n]+\\n\\s+with:\\n\\s+version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "depNameTemplate": "astral-sh/uv",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/copier\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "_min_copier_version:\\s*[\"'](?<currentValue>[^\"']+)[\"']"
+      ],
+      "depNameTemplate": "copier",
+      "datasourceTemplate": "pypi"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/\\.gitlab-ci\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "https://mise\\.run.*?mise[-_]v(?<currentValue>v[\\d.]+)"
+      ],
+      "depNameTemplate": "jdx/mise",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/workflows/[^/]+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "mise-action@[^\\n]+\\n\\s+with:\\n\\s+version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "depNameTemplate": "jdx/mise",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/(^|/)prek\\.toml$/"
+      ],
+      "matchStrings": [
+        "repo\\s*=\\s*\"https://github\\.com/(?<depName>[^/\"]+/[^\"]+?)(?:\\.git)?\"\\s*\\n\\s*rev\\s*=\\s*\"(?<currentValue>v?[\\d.]+[\\w.+-]*)\""
+      ],
+      "datasourceTemplate": "github-tags",
+      "versioningTemplate": "loose",
+      "depTypeTemplate": "prek-hook"
+    }
+  ],
+  "packageRules": [
+    {
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchFileNames": [
+        "template/**"
+      ],
+      "matchUpdateTypes": [
+        "pinDigest"
+      ],
+      "enabled": false
+    },
+    {
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchUpdateTypes": [
+        "digest"
+      ],
+      "automerge": true
+    },
+    {
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchUpdateTypes": [
+        "digest"
+      ],
+      "automerge": true
+    },
+    {
+      "matchPackageNames": [
+        "astral-sh/uv"
+      ],
+      "automerge": true
+    },
+    {
+      "matchPackageNames": [
+        "copier"
+      ],
+      "automerge": true,
+      "groupName": "copier",
+      "rangeStrategy": "bump"
+    },
+    {
+      "matchPackageNames": [
+        "jdx/mise"
+      ],
+      "automerge": true
+    },
+    {
+      "matchDepTypes": [
+        "prek-hook"
+      ],
+      "groupName": "prek hooks",
+      "automerge": true
+    }
+  ],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "automerge": true
+  },
+  "extends": [
+    "config:best-practices"
+  ],
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json"
+}
