@@ -6,37 +6,107 @@
 
 [tools]
 python = "{{ python_version }}"
+{% if installer == 'uv' %}
 uv = "latest"
+{% elif installer == 'poetry' %}
+poetry = "latest"
+{% endif %}
 
-[tasks.test]
-description = "Run tests (uv auto-syncs the venv first)"
-run = "uv run pytest"
-
-[tasks.lint]
-description = "Ruff lint"
-run = "uv run ruff check src tests"
-
-[tasks.format]
-description = "Auto-fix lint findings and format"
+[tasks.lock]
+description = "Resolve dependencies and write pylock.toml"
+{% if installer == 'uv' %}
+run = "uv lock && uv --quiet export --all-groups --format pylock.toml --output-file pylock.toml"
+{% elif installer == 'poetry' %}
+run = "poetry lock && poetry export --all-groups --format pylock.toml --output pylock.toml"
+{% elif installer == 'pip' %}
 run = '''
 #!/usr/bin/env bash
 set -euo pipefail
-uv run ruff check --fix src tests
-uv run ruff format src tests
+python -m venv .venv
+.venv/bin/python -m pip install --upgrade "pip>=26.1"
+.venv/bin/python -m pip lock -e . --group dev --output pylock.toml
+'''
+{% else %}
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+python -m venv .venv
+.venv/bin/python -m pip install --upgrade "pip>=26.1" "pip-tools>=7.6"
+.venv/bin/python -m piptools compile --extra dev --strip-extras --output-file requirements.txt pyproject.toml
+.venv/bin/python -m pip lock --requirement requirements.txt --output pylock.toml
+'''
+{% endif %}
+
+[tasks.sync]
+description = "Install locked dependencies and refresh the pylock.toml export"
+{% if installer == 'uv' %}
+run = "uv sync --all-groups && uv --quiet export --all-groups --locked --format pylock.toml --output-file pylock.toml"
+{% elif installer == 'poetry' %}
+run = "poetry install && poetry export --all-groups --format pylock.toml --output pylock.toml"
+{% elif installer == 'pip' %}
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+python -m venv .venv
+.venv/bin/python -m pip install --upgrade "pip>=26.1"
+if [[ ! -f pylock.toml ]]; then
+  .venv/bin/python -m pip lock -e . --group dev --output pylock.toml
+fi
+.venv/bin/python -m pip install --no-deps --no-require-hashes --requirement pylock.toml
+'''
+{% else %}
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+python -m venv .venv
+.venv/bin/python -m pip install --upgrade "pip>=26.1" "pip-tools>=7.6"
+if [[ ! -f requirements.txt || ! -f pylock.toml ]]; then
+  .venv/bin/python -m piptools compile --extra dev --strip-extras --output-file requirements.txt pyproject.toml
+  .venv/bin/python -m pip lock --requirement requirements.txt --output pylock.toml
+fi
+.venv/bin/python -m pip install --no-deps --requirement pylock.toml
+.venv/bin/python -m pip install --no-deps --editable .
+'''
+{% endif %}
+
+[tasks.test]
+description = "Run tests"
+depends = ["sync"]
+run = "{{ run_prefix }} pytest"
+
+[tasks.lint]
+description = "Ruff lint"
+depends = ["sync"]
+run = "{{ run_prefix }} ruff check src tests"
+
+[tasks.format]
+description = "Auto-fix lint findings and format"
+depends = ["sync"]
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+{{ run_prefix }} ruff check --fix src tests
+{{ run_prefix }} ruff format src tests
 '''
 
 [tasks.format-check]
 description = "Verify formatting and lint cleanliness"
+depends = ["sync"]
 run = '''
 #!/usr/bin/env bash
 set -euo pipefail
-uv run ruff format --check src tests
-uv run ruff check src tests
+{{ run_prefix }} ruff format --check src tests
+{{ run_prefix }} ruff check src tests
 '''
 
 [tasks.type-check]
-description = "Mypy over src"
-run = "uv run mypy src"
+description = "Type-check src with {{ type_checker }}"
+depends = ["sync"]
+{% if type_checker == 'pyrefly' %}
+run = "{{ run_prefix }} pyrefly check"
+{% else %}
+run = "{{ run_prefix }} mypy src"
+{% endif %}
 
 [tasks.quality]
 description = "All code-quality gates (lint, format, types)"

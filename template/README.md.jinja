@@ -8,12 +8,41 @@
 
 ## Development
 
-    uv sync --all-groups
-    uv run pytest
+Bootstrap the selected {{ installer }} environment and run the tests:
 
-Or bootstrap everything (tools, hooks, agent layer) with `mise run install`.
-Run `mise tasks` for the full task list; `mise run quality` for all
-code-quality gates.
+    mise run sync
+    mise run test
+
+Run `mise tasks` for the full task list and `mise run quality` for Ruff lint,
+format checks, and {{ type_checker }} type checking. The agentic layer's
+`mise run install` also installs tools, hooks, and agent wiring.
+
+### Dependency locking
+
+`pylock.toml` is the standardized PEP 751 lockfile. Commit it to version
+control. Run `mise run lock` after changing dependency declarations, then
+`mise run sync` to install them.
+
+{% if installer == 'uv' %}
+uv keeps `uv.lock` as its native source lock; commit both it and the exported
+`pylock.toml`. The sync task uses `uv.lock` and refreshes the export without
+changing dependency versions.
+{% elif installer == 'poetry' %}
+Poetry keeps `poetry.lock` as its native source lock; commit both it and the
+exported `pylock.toml`. Poetry 2.3+ and poetry-plugin-export 1.10+ are required
+and declared in `pyproject.toml`.
+{% elif installer == 'pip' %}
+pip writes `pylock.toml` directly. Its lockfile support is experimental and
+the lock is guaranteed only for the Python version and platform that created
+it. pip 26.1+ is required. The editable-development sync disables hash
+enforcement because pip cannot hash the local editable project; the lockfile
+still records hashes for external packages.
+{% else %}
+pip-compile writes `requirements.txt` as an intermediate, then `pip lock`
+converts it to `pylock.toml`. Commit both files. pip's lockfile support is
+experimental and the final lock is guaranteed only for the Python version and
+platform that created it. pip 26.1+ and pip-tools 7.6+ are required.
+{% endif %}
 
 ## License
 

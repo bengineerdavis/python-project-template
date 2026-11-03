@@ -8,7 +8,11 @@ version = "{{ project_version }}"
 description = "{{ description }}"
 readme = "README.md"
 requires-python = ">={{ python_version }}"
-license = { text = "{{ license }}" }
+{% if license.startswith('FSL') %}
+# FSL identifiers are not SPDX-listed; the PEP 639 license key is omitted.
+{% else %}
+license = "{{ license }}"
+{% endif %}
 license-files = ["LICENSE*"]
 authors = [{ name = "{{ author_name }}", email = "{{ author_email }}" }]
 keywords = ["cli"]
@@ -26,12 +30,31 @@ dependencies = [
 [project.scripts]
 {{ cli_name }} = "{{ project_slug }}.cli:app"
 
+{% if installer == 'pip-compile' %}
+# pip-compile reads PEP 621 optional dependencies, not PEP 735 groups.
+[project.optional-dependencies]
+{% else %}
 [dependency-groups]
+{% endif %}
 dev = [
   "pytest>=8",
+  "ruff>=0.17",
+{% if type_checker == 'pyrefly' %}
+  "pyrefly>=1.0",
+{% else %}
   "mypy>=1",
+{% endif %}
 ]
 
+{% if installer == 'poetry' %}
+[tool.poetry]
+requires-poetry = ">=2.3"
+packages = [{ include = "{{ project_slug }}", from = "src" }]
+
+[tool.poetry.requires-plugins]
+poetry-plugin-export = ">=1.10"
+
+{% endif %}
 [tool.hatch.build.targets.wheel]
 packages = ["src/{{ project_slug }}"]
 
@@ -51,10 +74,16 @@ select = [
   "RUF", # ruff-specific
 ]
 
+{% if type_checker == 'pyrefly' %}
+[tool.pyrefly]
+project-includes = ["src"]
+python-version = "{{ python_version }}"
+{% else %}
 [tool.mypy]
 python_version = "{{ python_version }}"
 warn_unused_configs = true
 ignore_missing_imports = true
+{% endif %}
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

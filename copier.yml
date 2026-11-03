@@ -1,12 +1,22 @@
-# Base copier template: modern Python CLI project (uv + prek + ruff + typer).
+# Base copier template: modern Python CLI project (PEP 751 locks + prek + ruff + typer).
 #
 # Division of labor: this template owns language/build/test/lint concerns.
 # The agentic layer (agentic-project-template) stamps ON TOP and owns review
 # loops, task management, agent wiring, and structure enforcement. Keep the
 # two concerns separate when extending (agentic spec: Behavior Layering).
 
+_min_copier_version: "9.18.2"
 _templates_suffix: .jinja
 _subdirectory: template
+_answers_file: .copier-answers.{{ template_name }}.yml
+_envops:
+  trim_blocks: true
+  undefined: jinja2.StrictUndefined  # error loudly for undefined variables
+
+template_name:  # Useful for namespacing and composition with other templates
+  type: str
+  default: python-project-template
+  when: false  # hidden question: reusable variable with default value
 
 project_name:
   type: str
@@ -54,6 +64,29 @@ python_version:
   type: str
   default: "3.12"
   help: Minimum Python version (requires-python)
+
+type_checker:
+  type: str
+  default: pyrefly
+  choices:
+    - pyrefly
+    - mypy
+  help: Static type checker for local development and CI
+
+installer:
+  type: str
+  default: uv
+  choices:
+    - uv
+    - poetry
+    - pip
+    - pip-compile
+  help: Dependency installer and lockfile workflow
+
+run_prefix:
+  type: str
+  default: "{{ 'uv run' if installer == 'uv' else 'poetry run' if installer == 'poetry' else '.venv/bin/python -m' }}"
+  when: false  # Command prefix used by generated mise tasks and CI
 
 license:
   type: str

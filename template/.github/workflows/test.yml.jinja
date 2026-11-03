@@ -11,21 +11,58 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+{% if installer == 'uv' %}
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: "{{ python_version }}"
+{% else %}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "{{ python_version }}"
+{% endif %}
+
+{% if installer == 'poetry' %}
+      - name: Install Poetry
+        run: python -m pip install "poetry>=2.3" "poetry-plugin-export>=1.10"
+{% endif %}
 
       - name: Sync dependencies
-        run: uv sync --all-groups
+{% if installer == 'uv' %}
+        run: uv sync --all-groups && uv --quiet export --all-groups --locked --format pylock.toml --output-file pylock.toml
+{% elif installer == 'poetry' %}
+        run: poetry install && poetry export --all-groups --format pylock.toml --output pylock.toml
+{% elif installer == 'pip' %}
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install --upgrade "pip>=26.1"
+          if [[ ! -f pylock.toml ]]; then
+            .venv/bin/python -m pip lock -e . --group dev --output pylock.toml
+          fi
+          .venv/bin/python -m pip install --no-deps --no-require-hashes --requirement pylock.toml
+{% else %}
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install --upgrade "pip>=26.1" "pip-tools>=7.6"
+          if [[ ! -f requirements.txt || ! -f pylock.toml ]]; then
+            .venv/bin/python -m piptools compile --extra dev --strip-extras --output-file requirements.txt pyproject.toml
+            .venv/bin/python -m pip lock --requirement requirements.txt --output pylock.toml
+          fi
+          .venv/bin/python -m pip install --no-deps --requirement pylock.toml
+          .venv/bin/python -m pip install --no-deps --editable .
+{% endif %}
 
       - name: Lint
-        run: uv run ruff check src tests
+        run: {{ run_prefix }} ruff check src tests
 
       - name: Format check
-        run: uv run ruff format --check src tests
+        run: {{ run_prefix }} ruff format --check src tests
 
       - name: Type check
-        run: uv run mypy src
+{% if type_checker == 'pyrefly' %}
+        run: {{ run_prefix }} pyrefly check
+{% else %}
+        run: {{ run_prefix }} mypy src
+{% endif %}
 
       - name: Test
-        run: uv run pytest
+        run: {{ run_prefix }} pytest

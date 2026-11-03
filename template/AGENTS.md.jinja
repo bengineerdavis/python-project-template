@@ -5,8 +5,10 @@
 ## Commands
 
 - `mise run install` — bootstrap tools and the agentic layer (idempotent)
-- `mise run test` — pytest (`uv run` auto-syncs the venv first)
-- `mise run quality` — lint + format-check + type-check
+- `mise run lock` — resolve dependencies and write `pylock.toml`
+- `mise run sync` — install locked dependencies with {{ installer }}
+- `mise run test` — pytest (syncs the {{ installer }} environment first)
+- `mise run quality` — lint + format-check + {{ type_checker }}
 - `mise run format` — auto-fix
 
 ## Repo map
@@ -19,6 +21,6 @@
 ## Context loading (on demand)
 
 - Normative requirements → `docs/SPEC.md` (when present)
-- Task store → `uv run backlog-py board`
+- Task store → `{{ run_prefix }} backlog-py board`
 
 The section below is managed by agentic-project-template.
