@@ -419,11 +419,11 @@ repos:
 ```python
 """{{cookiecutter.project_name}}."""
 
-__version__ = "0.1.0"
-__author__ = "{{cookiecutter.author_name}}"
-__email__ = "{{cookiecutter.author_email}}"
+__version__ = '0.1.0'
+__author__ = '{{cookiecutter.author_name}}'
+__email__ = '{{cookiecutter.author_email}}'
 
-__all__ = ["__version__", "__author__", "__email__"]
+__all__ = ['__version__', '__author__', '__email__']
 ```
 
 ### 4e. `{{cookiecutter.project_slug}}/src/{{cookiecutter.project_slug}}/cli.py.jinja`
@@ -435,20 +435,20 @@ import click
 
 
 @click.group()
-@click.version_option(version="0.1.0")
+@click.version_option(version='0.1.0')
 def main() -> None:
     """{{cookiecutter.description}}"""
     pass
 
 
 @main.command()
-@click.option("--name", default="World", help="Name to greet")
+@click.option('--name', default='World', help='Name to greet')
 def hello(name: str) -> None:
     """Simple hello command."""
-    click.echo(f"Hello {name}!")
+    click.echo(f'Hello {name}!')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
 ```
 

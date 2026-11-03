@@ -282,8 +282,8 @@ seed = loader.load_merged_seed()
 
 # Find python_cli template
 for template in seed.templates:
-    if template.id == "python_cli":
-        print(f"URL: {template.copier_url}")
+    if template.id == 'python_cli':
+        print(f'URL: {template.copier_url}')
         # → https://github.com/YOURORG/template-python-cli
 ```
 

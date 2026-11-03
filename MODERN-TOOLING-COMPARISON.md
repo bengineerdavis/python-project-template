@@ -25,14 +25,14 @@
 ```python
 from setuptools import setup, find_packages
 
-with open("README.md", "r") as fh:
+with open('README.md', 'r') as fh:
     long_description = fh.read()
 
 setup(
-    name="my-cli",
-    version="0.1.0",
-    author="Name",
-    author_email="email@example.com",
+    name='my-cli',
+    version='0.1.0',
+    author='Name',
+    author_email='email@example.com',
     # ... 20 more lines ...
 )
 ```
