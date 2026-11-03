@@ -4,6 +4,7 @@ target-version = "py312"
 [lint]
 select = ["ALL"]
 ignore = [
+    "CPY",  # copyright
     "D203",
     "D213",
     "Q000",
