@@ -163,8 +163,7 @@ def test_flaky_investigation_runs_twice_and_json_agrees(
     assert result.returncode == 0, text
     assert text.count('pytest_exit_code=0') == 2
     assert len(re.findall(r'pytest_seed=\d+', text)) == 2
-    json_line = next(line for line in text.splitlines() if line.startswith('{'))
-    report = json.loads(json_line)
+    report = json.loads(result.stdout)
     assert report['outcome'] == 'passed'
     assert report['scope'] == 'full'
     assert report['count'] == 3
@@ -212,6 +211,88 @@ def test_option_value_does_not_claim_focused_selection(
     assert result.returncode == 0, text
     assert 'scope=full' in text
     assert 'full suite pending' not in text
+
+
+@pytest.mark.parametrize('installer', ['uv'])
+@pytest.mark.parametrize('argument', ['-ktest_version', '--deselect=no_such_test'])
+def test_attached_selection_forms_report_focused_scope(
+    project: Path, installer: str, argument: str
+) -> None:
+    prepare_project(project)
+
+    result = run_command(project, 'mise', 'run', 'test', '--', argument)
+    text = output(result)
+
+    assert result.returncode == 0, text
+    assert 'scope=focused' in text, text
+    assert 'full suite pending' in text
+
+
+@pytest.mark.parametrize('installer', ['uv'])
+def test_json_writes_only_the_document_to_stdout(project: Path, installer: str) -> None:
+    prepare_project(project)
+
+    result = run_command(project, 'mise', 'run', 'test:all', '--json')
+
+    assert result.returncode == 0, output(result)
+    report = json.loads(result.stdout)
+    assert report['outcome'] == 'passed'
+    assert report['total_count'] == 3
+
+
+@pytest.mark.parametrize('installer', ['uv'])
+def test_no_collected_tests_keeps_pytest_exit_status(
+    project: Path, installer: str
+) -> None:
+    prepare_project(project)
+
+    result = run_command(
+        project, 'mise', 'run', 'test', '--', '-k', 'no_such_test_name'
+    )
+
+    assert result.returncode == 5, output(result)
+
+
+@pytest.mark.parametrize('installer', ['uv'])
+def test_mixed_flaky_outcome_reports_seven(project: Path, installer: str) -> None:
+    prepare_project(project)
+    (project / 'tests/test_flaky_counter.py').write_text(
+        'from pathlib import Path\n'
+        '\n'
+        '\n'
+        'def test_flaky_counter():\n'
+        '    counter = Path(".flaky-counter")\n'
+        '    seen = int(counter.read_text()) if counter.exists() else 0\n'
+        '    counter.write_text(str(seen + 1))\n'
+        '    assert seen > 0\n'
+    )
+
+    result = run_command(
+        project, 'mise', 'run', 'test:flaky', '--', 'tests/test_flaky_counter.py'
+    )
+
+    assert result.returncode == 7, output(result)
+    assert 'outcome=flaky' in output(result)
+
+
+@pytest.mark.parametrize('installer', ['pip-compile'])
+def test_stale_lock_is_rejected_before_installation(
+    project: Path, installer: str
+) -> None:
+    prepare_project(project)
+    requirements = project / 'requirements.txt'
+    original = requirements.read_text()
+    requirements.write_text(
+        re.sub(r'(pytest==)[0-9.]+', r'\g<1>9.1.0', original, count=1)
+    )
+    shutil.rmtree(project / '.venv')
+    shutil.rmtree(project / '.cache', ignore_errors=True)
+
+    result = run_command(project, 'mise', 'run', 'sync')
+
+    assert result.returncode != 0, output(result)
+    assert not (project / '.venv').exists()
+    requirements.write_text(original)
 
 
 @pytest.mark.parametrize('installer', ['uv'])
@@ -408,8 +489,8 @@ def test_fresh_checkout_rejects_stale_declared_dependencies(
     original = pyproject.read_text()
     pyproject.write_text(
         original.replace(
-            '  "pytest>=8",',
-            '  "pytest>=8",\n  "packaging>=24",',
+            '"pytest>=8"',
+            '"pytest>=99"',
             1,
         )
     )
@@ -420,5 +501,6 @@ def test_fresh_checkout_rejects_stale_declared_dependencies(
     text = output(result)
 
     assert result.returncode != 0, text
-    assert 'stale' in text
+    assert 'does not satisfy pyproject.toml' in text
+    assert not (project / '.venv').exists()
     pyproject.write_text(original)

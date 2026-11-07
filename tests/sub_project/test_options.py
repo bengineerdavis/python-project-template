@@ -51,15 +51,19 @@ def test_tooling_options(
     assert 'pytest-randomly>=5' in dev_dependencies
     assert 'prek>=0.5' in dev_dependencies
 
+    assert f'python scripts/test_feedback.py sync --installer {installer}' in mise
+
     if installer == 'uv':
         assert 'uv --quiet export --all-groups' in mise
-        assert 'uv sync --all-groups --locked' in mise
+        assert '--all-groups' in runner
+        assert '--locked' in runner
         assert 'astral-sh/setup-uv@v5' in workflow
     elif installer == 'poetry':
         assert 'poetry export --all-groups' in mise
         assert 'poetry check --lock' in mise
-        assert 'poetry env use .venv/bin/python' in mise
-        assert 'poetry sync' in mise
+        assert 'env' in runner
+        assert 'use' in runner
+        assert 'sync' in runner
         assert 'poetry-plugin-export = ">=1.10"' in pyproject_text
     elif installer == 'pip':
         assert 'pip lock -e . --group dev' in mise
@@ -68,8 +72,7 @@ def test_tooling_options(
         assert 'piptools compile --extra dev' in mise
         assert 'pip' in runner
         assert 'lock' in runner
-        assert '--requirement' in runner
-        assert 'relative_to(ROOT)' in runner
+        assert 'verify_lock_declarations.py' in runner
 
 
 def test_test_feedback_gates_are_declared_and_installed(

@@ -64,50 +64,13 @@ python scripts/test_feedback.py record-lock --installer pip-compile
 [tasks.sync]
 description = "Install existing lock artifacts without resolving dependencies"
 {% if installer == 'uv' %}
-run = "uv sync --all-groups --locked && python scripts/test_feedback.py record-sync --installer uv"
+run = "python scripts/test_feedback.py sync --installer uv"
 {% elif installer == 'poetry' %}
-run = '''
-#!/usr/bin/env bash
-set -euo pipefail
-unset VIRTUAL_ENV
-export POETRY_KEYRING_ENABLED=false
-poetry check --lock
-if [[ ! -x .venv/bin/python ]]; then
-  python -m venv .venv
-fi
-poetry env use .venv/bin/python
-poetry sync
-poetry run python -c "import pytest"
-python scripts/test_feedback.py record-sync --installer poetry
-'''
+run = 'python scripts/test_feedback.py sync --installer poetry'
 {% elif installer == 'pip' %}
-run = '''
-#!/usr/bin/env bash
-set -euo pipefail
-if [[ ! -f pylock.toml ]]; then
-  printf '%s\n' 'pylock.toml is missing; run mise run lock first' >&2
-  exit 2
-fi
-python -m venv .venv
-.venv/bin/python -m pip install --upgrade "pip>=26.1"
-.venv/bin/python -m pip install --no-deps --no-require-hashes --requirement pylock.toml
-.venv/bin/python -m pip install --no-deps --editable .
-python scripts/test_feedback.py record-sync --installer pip
-'''
+run = 'python scripts/test_feedback.py sync --installer pip'
 {% else %}
-run = '''
-#!/usr/bin/env bash
-set -euo pipefail
-if [[ ! -f requirements.txt || ! -f pylock.toml ]]; then
-  printf '%s\n' 'requirements.txt or pylock.toml is missing; run mise run lock first' >&2
-  exit 2
-fi
-python -m venv .venv
-.venv/bin/python -m pip install --upgrade "pip>=26.1"
-.venv/bin/python -m pip install --no-deps --requirement pylock.toml
-.venv/bin/python -m pip install --no-deps --editable .
-python scripts/test_feedback.py record-sync --installer pip-compile
-'''
+run = 'python scripts/test_feedback.py sync --installer pip-compile'
 {% endif %}
 
 [tasks.test]
