@@ -14,7 +14,8 @@ import tempfile
 import time
 import tomllib
 import xml.etree.ElementTree as ET
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent.parent
 STATE = ROOT / ".cache/test-feedback/environment.json"
@@ -89,11 +90,57 @@ def locked_packages(document: dict[str, object]) -> set[tuple[str, str]]:
     }
 
 
+def _filename(url: str) -> str:
+    return PurePosixPath(urlparse(url).path).name
+
+
+def locked_artifacts(document: dict[str, object]) -> dict[str, set[tuple[str, str]]]:
+    """Map each locked package to the artifacts that can satisfy it.
+
+    Artifact pins are the part of a lock that a version comparison cannot see:
+    a trojaned wheel keeps its name and version but changes its digest. uv and
+    Poetry record the same facts in different shapes, so both are normalised to
+    file name plus digest.
+    """
+    result: dict[str, set[tuple[str, str]]] = {}
+    for entry in document.get("packages", []):  # pylock
+        if "version" not in entry:
+            continue
+        name = str(entry["name"]).lower().replace("_", "-")
+        files = set()
+        sdist = entry.get("sdist") or {}
+        for algorithm, value in (sdist.get("hashes") or {}).items():
+            filename = _filename(str(sdist.get("url", ""))) or str(sdist.get("name", ""))
+            files.add((filename, f"{algorithm}:{value}"))
+        for wheel in entry.get("wheels") or []:
+            for algorithm, value in (wheel.get("hashes") or {}).items():
+                filename = str(wheel.get("name") or _filename(str(wheel.get("url", ""))))
+                files.add((filename, f"{algorithm}:{value}"))
+        result[name] = files
+    for entry in document.get("package", []):  # uv.lock, poetry.lock
+        if "version" not in entry:
+            continue
+        name = str(entry["name"]).lower().replace("_", "-")
+        files = set()
+        sdist = entry.get("sdist") or {}
+        if sdist.get("hash"):
+            files.add((_filename(str(sdist.get("url", ""))), str(sdist["hash"])))
+        for wheel in entry.get("wheels") or []:
+            if wheel.get("hash"):
+                files.add((_filename(str(wheel.get("url", ""))), str(wheel["hash"])))
+        for item in entry.get("files") or []:
+            if item.get("hash"):
+                files.add((str(item.get("file", "")), str(item["hash"])))
+        result[name] = files
+    return result
+
+
 def check_export_matches_native_lock(installer: str) -> None:
     """Fail when pylock.toml disagrees with the native lock it was exported from.
 
     Native lock validation cannot see edits to pylock.toml, and pip has no native
-    validation at all, so compare the resolved package sets offline.
+    validation at all, so compare the resolved packages and their artifact
+    digests offline.
     """
     if installer not in {"uv", "poetry"}:
         return
@@ -113,6 +160,14 @@ def check_export_matches_native_lock(installer: str) -> None:
     }
     if native_packages - own - exported:
         raise RuntimeError("pylock.toml disagrees with the native lock; run mise run lock")
+    exported_artifacts = locked_artifacts(pylock)
+    native_artifacts = locked_artifacts(native)
+    for name, files in exported_artifacts.items():
+        expected = native_artifacts.get(name)
+        if expected is not None and files != expected:
+            raise RuntimeError(
+                "pylock.toml artifacts disagree with the native lock; run mise run lock"
+            )
 
 
 def check_locks(installer: str) -> None:
@@ -193,6 +248,10 @@ def ensure_lock_digest(installer: str) -> str:
     recorded = state.get("lock_digest")
     if not recorded:
         check_locks(installer)
+        if installer in {"pip", "pip-compile"}:
+            # check_locks has no content validation for these installers, so a
+            # stale committed lock would otherwise become the trusted digest.
+            verify_pip_lock(installer)
         write_state(lock_digest=digest)
         return digest
     if recorded != digest:
@@ -217,15 +276,26 @@ def normalized_pylock(path: Path) -> object:
     packages = []
     for entry in document.get("packages", []):
         wheels = sorted(
-            (wheel.get("name"), tuple(sorted(wheel.get("hashes", {}).items())))
+            (
+                wheel.get("name"),
+                wheel.get("url"),
+                tuple(sorted(wheel.get("hashes", {}).items())),
+            )
             for wheel in entry.get("wheels", [])
         )
+        sdist = entry.get("sdist") or {}
         packages.append(
             {
                 "name": entry.get("name"),
                 "version": entry.get("version"),
                 "marker": entry.get("marker"),
                 "wheels": wheels,
+                "sdist": (
+                    sdist.get("name") or sdist.get("url"),
+                    tuple(sorted(sdist.get("hashes", {}).items())),
+                )
+                if sdist
+                else None,
             }
         )
     return sorted(packages, key=lambda package: str(package["name"]))

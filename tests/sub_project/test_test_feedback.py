@@ -373,3 +373,52 @@ def test_edited_pylock_is_rejected_before_tests(project: Path, installer: str) -
     assert 'disagrees with the native lock' in text
     assert 'pytest_exit_code=' not in text
     pylock.write_text(original)
+
+
+@pytest.mark.parametrize('installer', ['uv', 'poetry'])
+def test_tampered_artifact_digest_is_rejected_before_tests(
+    project: Path, installer: str
+) -> None:
+    prepare_project(project)
+    pylock = project / 'pylock.toml'
+    original = pylock.read_text()
+    match = re.search(r'sha256 = "([0-9a-f]{64})"', original)
+    assert match, original[:500]
+    digest = match.group(1)
+    tampered = '0' * 64 if digest != '0' * 64 else '1' * 64
+    pylock.write_text(
+        original.replace(f'sha256 = "{digest}"', f'sha256 = "{tampered}"', 1)
+    )
+
+    result = run_command(project, 'mise', 'run', 'test')
+    text = output(result)
+
+    assert result.returncode != 0
+    assert 'artifacts disagree with the native lock' in text
+    assert 'pytest_exit_code=' not in text
+    pylock.write_text(original)
+
+
+@pytest.mark.parametrize('installer', ['pip-compile'])
+def test_fresh_checkout_rejects_stale_declared_dependencies(
+    project: Path, installer: str
+) -> None:
+    prepare_project(project)
+    pyproject = project / 'pyproject.toml'
+    original = pyproject.read_text()
+    pyproject.write_text(
+        original.replace(
+            '  "pytest>=8",',
+            '  "pytest>=8",\n  "packaging>=24",',
+            1,
+        )
+    )
+    shutil.rmtree(project / '.venv')
+    shutil.rmtree(project / '.cache', ignore_errors=True)
+
+    result = run_command(project, 'mise', 'run', 'sync')
+    text = output(result)
+
+    assert result.returncode != 0, text
+    assert 'stale' in text
+    pyproject.write_text(original)
