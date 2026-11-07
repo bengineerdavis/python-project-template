@@ -38,6 +38,7 @@ dependencies = [
 {% endif %}
 dev = [
   "pytest>=8",
+  "pytest-randomly>=5",
   "ruff>=0.17",
 {% if type_checker == 'pyrefly' %}
   "pyrefly>=1.0",
@@ -87,4 +88,4 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+addopts = "-q --randomly-dont-reset-seed"

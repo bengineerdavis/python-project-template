@@ -10,12 +10,16 @@
 
 Bootstrap the selected {{ installer }} environment and run the tests:
 
+    mise run install
     mise run sync
     mise run test
 
 Run `mise tasks` for the full task list and `mise run quality` for Ruff lint,
-format checks, and {{ type_checker }} type checking. The agentic layer's
-`mise run install` also installs tools, hooks, and agent wiring.
+format checks, and {{ type_checker }} type checking. Use `mise run test:all`
+for complete-suite verification and `mise run test:flaky` to investigate
+nondeterminism with two independent test runs. `mise run install` registers
+the prek pre-commit and pre-push gates; the agentic layer adds tools and
+agent wiring.
 
 ### Dependency locking
 
@@ -25,8 +29,8 @@ control. Run `mise run lock` after changing dependency declarations, then
 
 {% if installer == 'uv' %}
 uv keeps `uv.lock` as its native source lock; commit both it and the exported
-`pylock.toml`. The sync task uses `uv.lock` and refreshes the export without
-changing dependency versions.
+`pylock.toml`. The lock task writes both files. The sync task installs from
+`uv.lock` without exporting or resolving dependencies.
 {% elif installer == 'poetry' %}
 Poetry keeps `poetry.lock` as its native source lock; commit both it and the
 exported `pylock.toml`. Poetry 2.3+ and poetry-plugin-export 1.10+ are required

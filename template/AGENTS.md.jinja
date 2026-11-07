@@ -4,10 +4,12 @@
 
 ## Commands
 
-- `mise run install` — bootstrap tools and the agentic layer (idempotent)
+- `mise run install` — register the prek pre-commit and pre-push gates (idempotent)
 - `mise run lock` — resolve dependencies and write `pylock.toml`
-- `mise run sync` — install locked dependencies with {{ installer }}
-- `mise run test` — pytest (syncs the {{ installer }} environment first)
+- `mise run sync` — install existing locks without resolving dependencies
+- `mise run test` — fast feedback after a logical edit; accepts forwarded pytest arguments
+- `mise run test:all` — complete-suite verification
+- `mise run test:flaky` — two independent full-suite runs with different seeds
 - `mise run quality` — lint + format-check + {{ type_checker }}
 - `mise run format` — auto-fix
 
@@ -15,6 +17,7 @@
 
 - `src/{{ project_slug }}/` — the package; `cli.py` is the entry point
 - `tests/` — pytest suite
+- `scripts/test_feedback.py` — shared environment and test-result boundary for mise and prek
 - `docs/` — project documentation
 - `backlog/` — task store (backlog-py; work is assigned here before it starts)
 
