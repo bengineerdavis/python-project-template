@@ -1,6 +1,12 @@
 line-length = 88
 target-version = "py312"
 
+# template/ holds payload files that are copied verbatim into generated
+# projects. Those projects lint with their own configuration (line length 100,
+# double quotes), so the payload must satisfy that style rather than this one.
+# Jinja templates are not Python and are never linted here.
+extend-exclude = ["template"]
+
 [lint]
 select = ["ALL"]
 ignore = [
@@ -27,6 +33,7 @@ ignore = [
     "D103", # Tests can self document
     "D104", # Not relevant for tests
     "S602", # Test env is controlled
+    "S603", # Test env is controlled; subprocess args are literals
     "S607", # Test env is controlled
     "PLR0913", # Fixtures inflate arg count
 ]
