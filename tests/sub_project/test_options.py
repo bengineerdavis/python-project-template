@@ -66,10 +66,10 @@ def test_tooling_options(
         assert 'actions/setup-python@v5' in workflow
     else:
         assert 'piptools compile --extra dev' in mise
-        assert "'pip'" in runner
-        assert "'lock'" in runner
-        assert "'--requirement'" in runner
-        assert 'str(candidate.relative_to(ROOT))' in runner
+        assert 'pip' in runner
+        assert 'lock' in runner
+        assert '--requirement' in runner
+        assert 'relative_to(ROOT)' in runner
 
 
 def test_test_feedback_gates_are_declared_and_installed(

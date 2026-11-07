@@ -264,6 +264,62 @@ def test_git_stages_run_fast_and_full_suite_gates(
     assert result.returncode != 0
 
 
+@pytest.mark.parametrize('installer', ['uv'])
+def test_fresh_checkout_runs_documented_bootstrap(
+    project: Path, installer: str
+) -> None:
+    prepare_project(project)
+    subprocess.run(['git', 'add', 'uv.lock', 'pylock.toml'], cwd=project, check=True)
+    subprocess.run(
+        ['git', 'commit', '-m', 'Lock test dependencies'],
+        cwd=project,
+        check=True,
+        capture_output=True,
+    )
+    shutil.rmtree(project / '.venv')
+    shutil.rmtree(project / '.cache', ignore_errors=True)
+
+    sync = run_command(project, 'mise', 'run', 'sync')
+    assert sync.returncode == 0, output(sync)
+    result = run_command(project, 'mise', 'run', 'test')
+
+    assert result.returncode == 0, output(result)
+    assert 'outcome=passed' in output(result)
+
+
+@pytest.mark.parametrize('installer', ['uv'])
+@pytest.mark.parametrize(
+    ('option', 'argument'),
+    [('-k', 'test_version'), ('-m', 'not builtin_marker')],
+)
+def test_selection_options_report_focused_scope(
+    project: Path, installer: str, option: str, argument: str
+) -> None:
+    prepare_project(project)
+
+    result = run_command(project, 'mise', 'run', 'test', '--', option, argument)
+    text = output(result)
+
+    assert result.returncode == 0, text
+    assert 'scope=focused' in text, text
+    assert 'full suite pending' in text
+
+
+@pytest.mark.parametrize('installer', ['uv'])
+@pytest.mark.parametrize('spelling', ['--junitxml', '--junit-xml'])
+def test_forwarded_junit_option_does_not_break_the_report(
+    project: Path, installer: str, spelling: str
+) -> None:
+    prepare_project(project)
+
+    result = run_command(project, 'mise', 'run', 'test', '--', spelling, 'result.xml')
+    text = output(result)
+
+    assert result.returncode == 0, text
+    assert 'pytest_count=0' not in text
+    assert 'count=3' in text
+
+
 @pytest.mark.parametrize('installer', ['uv', 'poetry', 'pip', 'pip-compile'])
 def test_ci_bootstrap_preserves_committed_locks(project: Path, installer: str) -> None:
     prepare_project(project)
@@ -298,7 +354,9 @@ def test_edited_pylock_is_rejected_before_tests(project: Path, installer: str) -
     pylock = project / 'pylock.toml'
     original = pylock.read_text()
     match = re.search(
-        r'^name = "(?P<name>[^"]+)"\nversion = "(?P<version>[^"]+)"', original, re.M
+        r'^name = "(?P<name>[^"]+)"\nversion = "(?P<version>[^"]+)"',
+        original,
+        re.MULTILINE,
     )
     assert match, original[:500]
     bumped = '999.0.0'
