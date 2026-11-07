@@ -49,6 +49,7 @@ def test_tooling_options(
     assert f'python scripts/test_feedback.py full --installer {installer}' in mise
     assert f'python scripts/test_feedback.py flaky --installer {installer}' in mise
     assert 'pytest-randomly>=5' in dev_dependencies
+    assert 'prek>=0.5' in dev_dependencies
 
     if installer == 'uv':
         assert 'uv --quiet export --all-groups' in mise
