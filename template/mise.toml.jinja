@@ -55,7 +55,7 @@ run = '''
 set -euo pipefail
 python -m venv .venv
 .venv/bin/python -m pip install --upgrade "pip>=26.1" "pip-tools>=7.6"
-.venv/bin/python -m piptools compile --extra dev --strip-extras --output-file requirements.txt pyproject.toml
+.venv/bin/python -m piptools compile --extra dev --strip-extras --generate-hashes --output-file requirements.txt pyproject.toml
 .venv/bin/python -m pip lock --requirement requirements.txt --output pylock.toml
 python scripts/test_feedback.py record-lock --installer pip-compile
 '''

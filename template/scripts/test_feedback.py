@@ -229,8 +229,10 @@ def sync_environment(installer: str) -> None:
         require_success(['poetry', 'sync'], 'synchronization failed')
     else:
         python = create_venv(ROOT / '.venv', ['pip>=26.1'])
-        # Only pip records the project itself as an unhashable editable entry.
-        # pip-compile locks are fully hashed, so keep hash verification enforced.
+        # A pylock records the project itself as an editable entry, which has no
+        # single file to hash. This flag exempts that entry only: verified with
+        # pip 26.3, a tampered wheel hash in the same lock still fails to install.
+        # pip-compile locks have no editable entry, so they never need it.
         hash_flags = ['--no-require-hashes'] if installer == 'pip' else []
         require_success(
             [
@@ -306,11 +308,17 @@ def normalized_pylock(path: Path) -> object:
             for wheel in entry.get('wheels', [])
         )
         sdist = entry.get('sdist') or {}
+        hashes: set[str] = set()
+        for wheel in entry.get('wheels', []):
+            hashes.update((wheel.get('hashes') or {}).values())
+        sdist_entry = entry.get('sdist') or {}
+        hashes.update((sdist_entry.get('hashes') or {}).values())
         packages.append(
             {
                 'name': entry.get('name'),
                 'version': entry.get('version'),
                 'marker': entry.get('marker'),
+                'hashes': hashes,
                 'wheels': wheels,
                 'sdist': (
                     sdist.get('name') or sdist.get('url'),
@@ -326,14 +334,34 @@ def normalized_pylock(path: Path) -> object:
 VERIFIER_PACKAGES = ['packaging==26.3']
 
 
-def pinned_versions(requirements: Path) -> dict[str, str]:
-    pins = {}
-    for line in requirements.read_text().splitlines():
-        line = line.split('#', 1)[0].strip()
-        if not line or line.startswith('-') or '==' not in line:
+def pinned_versions(requirements: Path) -> dict[str, tuple[str, set[str]]]:
+    """Return declared pins with the artifact hashes recorded beside them.
+
+    pip-compile writes `name==version \\` followed by `--hash=` continuation
+    lines, so the trailing backslash and those continuations are part of one
+    requirement entry.
+    """
+    pins: dict[str, tuple[str, set[str]]] = {}
+    name = version = None
+    hashes: set[str] = set()
+    for raw in [*requirements.read_text().splitlines(), '']:
+        line = raw.split('#', 1)[0].strip()
+        if line.startswith('--hash=sha256:'):
+            hashes.add(line.partition(':')[2].strip().rstrip('\\').strip())
             continue
-        name, _, version = line.partition('==')
-        pins[name.strip().lower().replace('_', '-')] = version.strip()
+        if '==' in line:
+            if name is not None:
+                pins[name] = (version, hashes)
+            candidate, _, pinned = line.partition('==')
+            name = candidate.strip().lower().replace('_', '-')
+            version = pinned.rstrip('\\').strip()
+            hashes = set()
+        elif line and name is not None and not line.startswith('-'):
+            pins[name] = (version, hashes)
+            name = version = None
+            hashes = set()
+    if name is not None:
+        pins[name] = (version, hashes)
     return pins
 
 
@@ -343,6 +371,12 @@ def verify_pip_lock(installer: str) -> None:
     Re-resolving against the live index made an unchanged commit fail whenever
     an unrelated release appeared, so the declarations are checked against the
     committed lock instead. Only the verifier tool is fetched, pinned exactly.
+
+    pip-compile is cross-checked against requirements.txt, which records the
+    artifact hashes independently. pip has a single lock artifact and no second
+    source, so a coherent edit that replaces both a URL and its digest cannot be
+    detected offline; only a rewrite of the lock by `mise run lock` can produce
+    a trusted one. Installation still enforces the recorded digests.
     """
     with tempfile.TemporaryDirectory(prefix='.verify-lock-', dir=ROOT) as directory:
         work = Path(directory)
@@ -395,11 +429,29 @@ def verify_pip_lock(installer: str) -> None:
                 for package in locked
             }
             stale = [
-                name for name, version in pins.items() if versions.get(name) != version
+                name
+                for name, (version, _) in pins.items()
+                if versions.get(name) != version
             ]
             if stale:
                 raise RuntimeError(
                     'requirements.txt disagrees with pylock.toml; run mise run lock'
+                )
+            # requirements.txt and pylock.toml are separate files written by
+            # separate commands, so the artifact hashes they record must agree.
+            # A lock whose URL and digest were both replaced then fails here.
+            recorded = {
+                str(package['name']).lower().replace('_', '-'): set(package['hashes'])
+                for package in locked
+            }
+            unrecorded = [
+                name
+                for name, (_, hashes) in pins.items()
+                if recorded.get(name) and not recorded[name] <= hashes
+            ]
+            if unrecorded:
+                raise RuntimeError(
+                    'requirements.txt hashes disagree with pylock.toml; run mise run lock'
                 )
 
 

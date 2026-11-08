@@ -481,6 +481,30 @@ def test_tampered_artifact_digest_is_rejected_before_tests(
 
 
 @pytest.mark.parametrize('installer', ['pip-compile'])
+def test_coherently_tampered_artifacts_are_rejected(
+    project: Path, installer: str
+) -> None:
+    prepare_project(project)
+    pylock = project / 'pylock.toml'
+    original = pylock.read_text()
+    digest = re.search(r'sha256 = "([0-9a-f]{64})"', original).group(1)
+    substituted = 'a' * 64
+    pylock.write_text(
+        original.replace(f'sha256 = "{digest}"', f'sha256 = "{substituted}"', 1)
+    )
+    shutil.rmtree(project / '.venv')
+    shutil.rmtree(project / '.cache', ignore_errors=True)
+
+    result = run_command(project, 'mise', 'run', 'sync')
+    text = output(result)
+
+    assert result.returncode != 0, text
+    assert 'hashes disagree' in text
+    assert not (project / '.venv').exists()
+    pylock.write_text(original)
+
+
+@pytest.mark.parametrize('installer', ['pip-compile'])
 def test_fresh_checkout_rejects_stale_declared_dependencies(
     project: Path, installer: str
 ) -> None:
