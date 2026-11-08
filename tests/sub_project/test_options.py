@@ -45,6 +45,7 @@ def test_tooling_options(
     assert 'python scripts/test_feedback.py ci' in workflow
     assert 'python scripts/test_feedback.py full' in workflow
     assert 'pylock.toml' in readme
+    assert 'git init' in readme
     assert f'python scripts/test_feedback.py fast --installer {installer}' in mise
     assert f'python scripts/test_feedback.py full --installer {installer}' in mise
     assert f'python scripts/test_feedback.py flaky --installer {installer}' in mise

@@ -96,37 +96,32 @@ def _filename(url: str) -> str:
     return PurePosixPath(urlparse(url).path).name
 
 
-def locked_artifacts(document: dict[str, object]) -> dict[str, set[tuple[str, str]]]:
-    """Map each locked package to the artifacts that can satisfy it.
+def locked_artifacts(document: dict[str, object]) -> dict[tuple[str, str], set[tuple[str, str]]]:
+    """Map each locked (package, version) to the artifacts that can satisfy it.
 
-    Artifact pins are the part of a lock that a version comparison cannot see:
-    a trojaned wheel keeps its name and version but changes its digest. uv and
-    Poetry record the same facts in different shapes, so both are normalised to
-    file name plus digest.
+    Keying by version as well as name matters for locks that hold several
+    versions of one dependency for disjoint Python or platform markers; keying
+    by name alone would let a later entry overwrite an earlier one.
     """
-    result: dict[str, set[tuple[str, str]]] = {}
+    result: dict[tuple[str, str], set[tuple[str, str]]] = {}
     for entry in document.get('packages', []):  # pylock
         if 'version' not in entry:
             continue
-        name = str(entry['name']).lower().replace('_', '-')
+        key = (str(entry['name']).lower().replace('_', '-'), str(entry['version']))
         files = set()
         sdist = entry.get('sdist') or {}
         for algorithm, value in (sdist.get('hashes') or {}).items():
-            filename = _filename(str(sdist.get('url', ''))) or str(
-                sdist.get('name', '')
-            )
+            filename = _filename(str(sdist.get('url', ''))) or str(sdist.get('name', ''))
             files.add((filename, f'{algorithm}:{value}'))
         for wheel in entry.get('wheels') or []:
             for algorithm, value in (wheel.get('hashes') or {}).items():
-                filename = str(
-                    wheel.get('name') or _filename(str(wheel.get('url', '')))
-                )
+                filename = str(wheel.get('name') or _filename(str(wheel.get('url', ''))))
                 files.add((filename, f'{algorithm}:{value}'))
-        result[name] = files
+        result[key] = files
     for entry in document.get('package', []):  # uv.lock, poetry.lock
         if 'version' not in entry:
             continue
-        name = str(entry['name']).lower().replace('_', '-')
+        key = (str(entry['name']).lower().replace('_', '-'), str(entry['version']))
         files = set()
         sdist = entry.get('sdist') or {}
         if sdist.get('hash'):
@@ -137,7 +132,7 @@ def locked_artifacts(document: dict[str, object]) -> dict[str, set[tuple[str, st
         for item in entry.get('files') or []:
             if item.get('hash'):
                 files.add((str(item.get('file', '')), str(item['hash'])))
-        result[name] = files
+        result[key] = files
     return result
 
 
@@ -174,8 +169,8 @@ def check_export_matches_native_lock(installer: str) -> None:
         )
     exported_artifacts = locked_artifacts(pylock)
     native_artifacts = locked_artifacts(native)
-    for name, files in exported_artifacts.items():
-        expected = native_artifacts.get(name)
+    for key, files in exported_artifacts.items():
+        expected = native_artifacts.get(key)
         if expected is not None and files != expected:
             raise RuntimeError(
                 'pylock.toml artifacts disagree with the native lock; run mise run lock'

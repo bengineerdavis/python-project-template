@@ -8,8 +8,11 @@
 
 ## Development
 
-Bootstrap the selected {{ installer }} environment and run the tests:
+Bootstrap the selected {{ installer }} environment and run the tests. The Git
+hooks need a repository, so initialise one first if this project is not one
+yet:
 
+    git init
     mise run install
     mise run sync
     mise run test

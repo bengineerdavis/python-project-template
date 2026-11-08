@@ -198,6 +198,31 @@ def test_flaky_investigation_fails_closed_on_mixed_outcomes(
 
 
 @pytest.mark.parametrize('installer', ['uv'])
+def test_multiple_valued_options_report_full_scope(
+    project: Path, installer: str
+) -> None:
+    prepare_project(project)
+
+    result = run_command(
+        project, 'mise', 'run', 'test:all', '--', '--tb', 'short', '--color', 'no'
+    )
+    text = output(result)
+
+    assert result.returncode == 0, text
+    assert 'scope=full' in text
+    assert 'full suite pending' not in text
+
+
+@pytest.mark.parametrize('installer', ['uv'])
+def test_documented_bootstrap_needs_a_git_repository(
+    project: Path, installer: str
+) -> None:
+    prompt = project / 'README.md'
+    assert 'git init' in prompt.read_text()
+    assert (project / '.git').exists()
+
+
+@pytest.mark.parametrize('installer', ['uv'])
 def test_option_value_does_not_claim_focused_selection(
     project: Path, installer: str
 ) -> None:

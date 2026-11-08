@@ -7,7 +7,7 @@
 - `mise run install` — register the prek pre-commit and pre-push gates (idempotent)
 - `mise run lock` — resolve dependencies and write `pylock.toml`
 - `mise run sync` — install existing locks without resolving dependencies
-- `mise run test` — fast feedback after a logical edit; accepts forwarded pytest arguments
+- `mise run test` — fast feedback after a logical edit; accepts forwarded pytest arguments. Requires a Git repository (`git init` first), because the hook runner preserves unstaged edits through Git.
 - `mise run test:all` — complete-suite verification
 - `mise run test:flaky` — two independent full-suite runs with different seeds
 - `mise run quality` — lint + format-check + {{ type_checker }}
