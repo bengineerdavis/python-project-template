@@ -122,3 +122,35 @@ run = "{{ run_prefix }} mypy src"
 [tasks.quality]
 description = "All code-quality gates (lint, format, types)"
 depends = ["lint", "format-check", "type-check"]
+
+[tasks.clean]
+description = "Remove local build and test artifacts, including the virtual environment"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+# The state file records which lock the environment was synced from. Removing
+# the environment without it would leave `mise run test` believing the
+# environment still matches and skipping the sync.
+rm -rf .venv .cache/test-feedback
+find . -path ./.git -prune -o -type d -name __pycache__ -exec rm -rf {} +
+rm -rf .pytest_cache .ruff_cache .mypy_cache .pyrefly_cache .coverage htmlcov
+rm -rf tmp/pytest
+echo "removed local Python artifacts; run mise run install to rebuild"
+'''
+
+[tasks.cache-prune]
+description = "Shed the local uv cache entries this environment no longer references"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+cache_dir=$(uv cache dir)
+before=$(du -sm "$cache_dir" | cut -f1)
+# --ci is uv's own convention for a disposable run: it drops unneeded
+# pre-built wheels and keeps wheels built from source. A plain prune does not
+# reclaim entries left behind by deleted environments, so it barely shrinks a
+# cache filled by throwaway project renders.
+uv cache prune --ci --force
+after=$(du -sm "$cache_dir" | cut -f1)
+printf 'uv cache: %s MB -> %s MB (reclaimed %s MB)\n' \
+  "$before" "$after" "$((before - after))"
+'''

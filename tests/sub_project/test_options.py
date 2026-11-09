@@ -88,3 +88,15 @@ def test_test_feedback_gates_are_declared_and_installed(
     assert '[tasks.install]' in mise
     assert 'prek install --hook-type pre-commit --hook-type pre-push' in mise
     assert 'default_install_hook_types = ["pre-commit", "pre-push"]' in prek_config
+
+
+def test_clean_removes_the_sync_state_with_the_environment(
+    sub_project_factory: Callable[[dict[str, Any] | None], Path],
+) -> None:
+    """A clean that keeps the state file would make the next run skip syncing."""
+    project = sub_project_factory({'installer': 'uv'})
+
+    clean = tomllib.loads((project / 'mise.toml').read_text())['tasks']['clean']
+
+    assert '.venv' in clean['run']
+    assert '.cache/test-feedback' in clean['run']
