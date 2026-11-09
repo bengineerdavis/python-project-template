@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import secrets
 import subprocess
 import sys
@@ -21,6 +22,11 @@ ROOT = Path(__file__).resolve().parent.parent
 STATE = ROOT / '.cache/test-feedback/environment.json'
 LOCK_NAMES = ('uv.lock', 'poetry.lock', 'pylock.toml', 'requirements.txt')
 INSTALLERS = ('uv', 'poetry', 'pip', 'pip-compile')
+
+
+def normalized_name(name: str) -> str:
+    """Apply PEP 503 normalization so dotted and repeated separators agree."""
+    return re.sub(r'[-_.]+', '-', name).lower()
 
 
 def run(
@@ -86,7 +92,7 @@ def required_locks(installer: str) -> tuple[str, ...]:
 def locked_packages(document: dict[str, object]) -> set[tuple[str, str]]:
     entries = document['packages'] if 'packages' in document else document['package']
     return {
-        (str(entry['name']).lower().replace('_', '-'), str(entry['version']))
+        (normalized_name(str(entry['name'])), str(entry['version']))
         for entry in entries
         if 'version' in entry
     }
@@ -107,7 +113,7 @@ def locked_artifacts(document: dict[str, object]) -> dict[tuple[str, str], set[t
     for entry in document.get('packages', []):  # pylock
         if 'version' not in entry:
             continue
-        key = (str(entry['name']).lower().replace('_', '-'), str(entry['version']))
+        key = (normalized_name(str(entry['name'])), str(entry['version']))
         files = set()
         sdist = entry.get('sdist') or {}
         for algorithm, value in (sdist.get('hashes') or {}).items():
@@ -121,7 +127,7 @@ def locked_artifacts(document: dict[str, object]) -> dict[tuple[str, str], set[t
     for entry in document.get('package', []):  # uv.lock, poetry.lock
         if 'version' not in entry:
             continue
-        key = (str(entry['name']).lower().replace('_', '-'), str(entry['version']))
+        key = (normalized_name(str(entry['name'])), str(entry['version']))
         files = set()
         sdist = entry.get('sdist') or {}
         if sdist.get('hash'):
@@ -161,7 +167,7 @@ def check_export_matches_native_lock(installer: str) -> None:
     own = {
         package
         for package in native_packages
-        if package[0] == project_name.lower().replace('_', '-')
+        if package[0] == normalized_name(project_name)
     }
     if native_packages - own - exported:
         raise RuntimeError(
@@ -348,7 +354,7 @@ def pinned_versions(requirements: Path) -> dict[str, tuple[str, set[str]]]:
             if name is not None:
                 pins[name] = (version, hashes)
             candidate, _, pinned = line.partition('==')
-            name = candidate.strip().lower().replace('_', '-')
+            name = normalized_name(candidate.strip())
             version = pinned.rstrip('\\').strip()
             hashes = set()
         elif line and name is not None and not line.startswith('-'):
@@ -412,15 +418,15 @@ def verify_pip_lock(installer: str) -> None:
                 raise RuntimeError('could not read declared dependencies')
             pins = pinned_versions(ROOT / 'requirements.txt')
             missing = [
-                name.lower().replace('_', '-')
+                normalized_name(name)
                 for name in json.loads(declarations.stdout)
-                if name.lower().replace('_', '-') not in pins
+                if normalized_name(name) not in pins
             ]
             if missing:
                 raise RuntimeError('requirements.txt is stale; run mise run lock')
             locked = normalized_pylock(ROOT / 'pylock.toml')
             versions = {
-                str(package['name']).lower().replace('_', '-'): package['version']
+                normalized_name(str(package['name'])): package['version']
                 for package in locked
             }
             stale = [
@@ -436,7 +442,7 @@ def verify_pip_lock(installer: str) -> None:
             # separate commands, so the artifact hashes they record must agree.
             # A lock whose URL and digest were both replaced then fails here.
             recorded = {
-                str(package['name']).lower().replace('_', '-'): set(package['hashes'])
+                normalized_name(str(package['name'])): set(package['hashes'])
                 for package in locked
             }
             unrecorded = [
@@ -563,28 +569,45 @@ SELECTION_OPTIONS = (
     '-x',
     '--exitfirst',
 )
-VALUE_OPTIONS = (
-    '-k',
-    '-m',
-    '-p',
-    '-c',
-    '-o',
-    '--rootdir',
-    '--confcutdir',
-    '--basetemp',
-    '--ignore',
-    '--ignore-glob',
-    '--deselect',
-    '--maxfail',
-    '--last-failed-no-failures',
-    '--junit-prefix',
-    '--max-warnings',
-    '--tb',
-    '--color',
-    '--durations',
-    '--log-level',
-    '--capture',
-    '--runxfail',
+# Flags that take no value. Any other option is assumed to consume the next
+# word, so a newly added pytest option cannot turn its value into a phantom
+# node ID. Guessing "takes a value" can only produce a harmless false warning;
+# the reverse would claim the whole suite ran when it did not.
+BOOLEAN_OPTIONS = frozenset(
+    {
+        "-q",
+        "-v",
+        "-s",
+        "-x",
+        "-l",
+        "--lf",
+        "--ff",
+        "--last-failed",
+        "--failed-first",
+        "--exitfirst",
+        "--co",
+        "--collect-only",
+        "--no-header",
+        "--quiet",
+        "--verbose",
+        "--showlocals",
+        "--runxfail",
+        "--disable-warnings",
+        "--strict-markers",
+        "--strict-config",
+        "--new-first",
+        "--stepwise",
+        "--sw",
+        "--no-summary",
+        "--cache-clear",
+        "--full-trace",
+        "--pdb",
+        "--trace",
+        "--setup-show",
+        "--setup-plan",
+        "--version",
+        "--continue-on-collection-errors",
+    }
 )
 
 
@@ -612,21 +635,26 @@ def reject_reserved_options(arguments: list[str]) -> list[str]:
 def selected_scope(arguments: list[str]) -> str:
     """Report whether the run covers the whole suite or a selection.
 
-    Selection arrives as pytest options or as explicit node IDs, so it is
-    decided from the arguments rather than by spending a second pytest start
-    on collection.
+    Arguments are consumed left to right so each option's value is attributed
+    to that option, whether written as `--option value` or `--option=value`.
+    A bare positional that is not an option's value is a node ID, which is a
+    selection.
     """
-    previous = ''
-    for argument in arguments:
+    index = 0
+    while index < len(arguments):
+        argument = arguments[index]
+        index += 1
         option = argument.partition('=')[0]
         if option in SELECTION_OPTIONS:
             return 'focused'
-        # Attached forms such as -ktest_version or -m "not slow" select tests too.
+        # Attached forms such as -ktest_version also select tests.
         if len(argument) > 2 and argument[:2] in {'-k', '-m'}:
             return 'focused'
-        if not argument.startswith('-') and previous not in VALUE_OPTIONS:
+        if not argument.startswith('-'):
             return 'focused'
-        previous = argument
+        if option in BOOLEAN_OPTIONS or '=' in argument:
+            continue
+        index += 1
     return 'full'
 
 
